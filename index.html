@@ -50,19 +50,20 @@
         #modeBackBtn:hover { border-color: #f7c948; color: #f7c948; }
 
         /* --- IN-GAME HUD --- */
-        #hud { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 700px; padding: 8px 16px; display: flex; align-items: center; gap: 14px; pointer-events: none; }
-        .hud-left { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+        #hud { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 700px; padding: 10px 18px 10px; display: flex; align-items: center; gap: 14px; pointer-events: none; background: linear-gradient(to top, rgba(0,0,0,0.7), transparent); }
+        .hud-left { display: flex; flex-direction: column; gap: 6px; flex: 1; }
         .bar-row { display: flex; align-items: center; gap: 8px; }
-        .bar-label { color: #ccc; font-size: 11px; width: 44px; }
-        .bar-track { flex: 1; height: 10px; background: #333; border-radius: 5px; overflow: hidden; }
-        .bar-fill { height: 100%; border-radius: 5px; transition: width .1s; }
-        #hp-fill   { background: linear-gradient(90deg,#e74c3c,#ff6b6b); }
-        #ammo-fill { background: linear-gradient(90deg,#3498db,#74b9ff); }
-        #super-fill { background: linear-gradient(90deg,#f7c948,#e67e22); }
-        .hud-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-        #hud-kills  { color: #f7c948; font-size: 16px; font-weight: 900; }
-        #hud-wave   { color: #aaa; font-size: 12px; }
-        #super-btn-hint { font-size: 11px; color: #f7c948; }
+        .bar-label { color: #eee; font-size: 12px; width: 20px; text-align: center; text-shadow: 0 1px 3px #000; }
+        .bar-track { flex: 1; height: 12px; background: rgba(0,0,0,0.5); border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
+        .bar-fill { height: 100%; border-radius: 6px; transition: width .12s; position: relative; }
+        .bar-fill::after { content:''; position:absolute; top:1px; left:2px; right:2px; height:4px; background:rgba(255,255,255,0.25); border-radius:3px; }
+        #hp-fill   { background: linear-gradient(90deg,#c0392b,#e74c3c,#ff6b6b); }
+        #ammo-fill { background: linear-gradient(90deg,#2980b9,#3498db,#74b9ff); }
+        #super-fill { background: linear-gradient(90deg,#d35400,#e67e22,#f7c948); box-shadow: 0 0 8px rgba(247,201,72,0.6); }
+        .hud-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+        #hud-kills  { color: #f7c948; font-size: 17px; font-weight: 900; text-shadow: 0 2px 6px rgba(0,0,0,0.8); }
+        #hud-wave   { color: #ccc; font-size: 12px; text-shadow: 0 1px 4px #000; }
+        #super-btn-hint { font-size: 12px; font-weight: bold; text-shadow: 0 1px 3px #000; background: rgba(0,0,0,0.4); padding: 2px 8px; border-radius: 8px; border: 1px solid rgba(247,201,72,0.3); }
         #hud.hidden { display: none; }
 
         /* score display for BrawlBall */
