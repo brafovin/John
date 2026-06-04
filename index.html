@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brawl Clone</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: 'Arial', sans-serif; overflow: hidden; }
+        #ui { color: white; text-align: center; margin-bottom: 10px; font-size: 14px; }
+        canvas { border: 3px solid #16213e; border-radius: 8px; cursor: crosshair; }
+        #hud { display: flex; gap: 20px; margin-top: 10px; align-items: center; }
+        .bar-container { display: flex; flex-direction: column; align-items: center; gap: 4px; color: white; font-size: 12px; }
+        .bar { width: 120px; height: 14px; background: #333; border-radius: 7px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 7px; transition: width 0.1s; }
+        #hp-fill { background: linear-gradient(90deg, #e74c3c, #ff6b6b); }
+        #ammo-fill { background: linear-gradient(90deg, #3498db, #74b9ff); }
+        #kills { color: #f39c12; font-size: 14px; font-weight: bold; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
+        #overlay h1 { font-size: 48px; margin-bottom: 20px; color: #f39c12; text-shadow: 0 0 20px #f39c12; }
+        #overlay p { font-size: 18px; margin-bottom: 30px; color: #ccc; }
+        #overlay button { padding: 14px 40px; font-size: 20px; background: linear-gradient(135deg, #f39c12, #e67e22); border: none; border-radius: 30px; color: white; cursor: pointer; font-weight: bold; box-shadow: 0 4px 15px rgba(243,156,18,0.5); transition: transform 0.1s; }
+        #overlay button:hover { transform: scale(1.05); }
+        .controls { font-size: 13px; color: #aaa; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <span id="kills">Kills: 0</span>
+    </div>
+    <canvas id="gameCanvas" width="700" height="500"></canvas>
+    <div id="hud">
+        <div class="bar-container">
+            <span>❤️ HP</span>
+            <div class="bar"><div class="bar-fill" id="hp-fill" style="width:100%"></div></div>
+        </div>
+        <div class="bar-container">
+            <span>🔵 Ammo</span>
+            <div class="bar"><div class="bar-fill" id="ammo-fill" style="width:100%"></div></div>
+        </div>
+    </div>
+    <div id="overlay">
+        <h1>⚡ BRAWL CLONE</h1>
+        <p>Besiege alle Gegner und überlebe!</p>
+        <button onclick="startGame()">SPIELEN</button>
+        <p class="controls" style="margin-top:20px;">WASD: Bewegen &nbsp;|&nbsp; Maus: Zielen &nbsp;|&nbsp; Klick: Schießen</p>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>
