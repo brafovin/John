@@ -1161,10 +1161,10 @@ function drawShowdown() {
         ctx.beginPath(); ctx.ellipse(cx+2,cy+cs+3,cs*0.9,cs*0.25,0,0,Math.PI*2); ctx.fill();
         // Crate body
         ctx.fillStyle='#c8851a';
-        ctx.beginPath(); ctx.roundRect(cx-cs,cy-cs,cs*2,cs*2,4); ctx.fill();
+        ctx.beginPath(); rrect(ctx,cx-cs,cy-cs,cs*2,cs*2,4); ctx.fill();
         // Top face (lighter)
         ctx.fillStyle='#dda020';
-        ctx.beginPath(); ctx.roundRect(cx-cs,cy-cs,cs*2,cs*0.9,4); ctx.fill();
+        ctx.beginPath(); rrect(ctx,cx-cs,cy-cs,cs*2,cs*0.9,4); ctx.fill();
         // Wood grain lines
         ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=1.5;
         ctx.beginPath(); ctx.moveTo(cx-cs+4,cy-cs); ctx.lineTo(cx-cs+4,cy+cs); ctx.stroke();
@@ -1172,7 +1172,7 @@ function drawShowdown() {
         ctx.beginPath(); ctx.moveTo(cx-cs,cy); ctx.lineTo(cx+cs,cy); ctx.stroke();
         // Metal bands
         ctx.strokeStyle='#7f5500'; ctx.lineWidth=2;
-        ctx.beginPath(); ctx.roundRect(cx-cs,cy-cs,cs*2,cs*2,4); ctx.stroke();
+        ctx.beginPath(); rrect(ctx,cx-cs,cy-cs,cs*2,cs*2,4); ctx.stroke();
         // Heart icon
         ctx.fillStyle='#e74c3c'; ctx.font=`bold ${cs}px Arial`;
         ctx.textAlign='center'; ctx.textBaseline='middle';
@@ -1226,13 +1226,13 @@ function drawMapShowdown() {
     for (const w of walls) {
         // Rock base
         ctx.fillStyle='#b8622a';
-        ctx.beginPath(); ctx.roundRect(w.x+1,w.y+6,w.w-2,w.h-6,3); ctx.fill();
+        ctx.beginPath(); rrect(ctx,w.x+1,w.y+6,w.w-2,w.h-6,3); ctx.fill();
         // Top face (brighter)
         ctx.fillStyle='#d4824a';
-        ctx.beginPath(); ctx.roundRect(w.x,w.y,w.w,w.h*0.6,4); ctx.fill();
+        ctx.beginPath(); rrect(ctx,w.x,w.y,w.w,w.h*0.6,4); ctx.fill();
         // Highlight
         ctx.fillStyle='rgba(255,200,150,0.22)';
-        ctx.beginPath(); ctx.roundRect(w.x+3,w.y+3,w.w-6,6,2); ctx.fill();
+        ctx.beginPath(); rrect(ctx,w.x+3,w.y+3,w.w-6,6,2); ctx.fill();
         // Side shadow
         ctx.fillStyle='rgba(0,0,0,0.18)';
         ctx.fillRect(w.x,w.y+w.h-7,w.w,7);
@@ -1620,26 +1620,26 @@ function drawWeapon(ctx, classLabel, shirtColor, r) {
     ctx.strokeStyle='rgba(0,0,0,0.35)'; ctx.lineWidth=1;
     switch(classLabel) {
         case 'Nahkämpfer': case 'Assassine':
-            ctx.fillStyle=metal; ctx.beginPath(); ctx.roundRect(2,-2.5,r*1.5,5,2); ctx.fill(); ctx.stroke();
-            ctx.fillStyle=dark; ctx.beginPath(); ctx.roundRect(r*1.5,-4,8,8,1); ctx.fill();
-            ctx.fillStyle=acc; ctx.beginPath(); ctx.roundRect(-2,-2,8,5,2); ctx.fill();
+            ctx.fillStyle=metal; ctx.beginPath(); rrect(ctx,2,-2.5,r*1.5,5,2); ctx.fill(); ctx.stroke();
+            ctx.fillStyle=dark; ctx.beginPath(); rrect(ctx,r*1.5,-4,8,8,1); ctx.fill();
+            ctx.fillStyle=acc; ctx.beginPath(); rrect(ctx,-2,-2,8,5,2); ctx.fill();
             break;
         case 'Tank':
-            ctx.fillStyle=dark; ctx.beginPath(); ctx.roundRect(-2,-7,r*1.15,6,3); ctx.fill(); ctx.stroke();
-            ctx.beginPath(); ctx.roundRect(-2,1,r*1.15,6,3); ctx.fill(); ctx.stroke();
-            ctx.fillStyle=acc; ctx.beginPath(); ctx.roundRect(-5,-8,8,16,3); ctx.fill(); ctx.stroke();
+            ctx.fillStyle=dark; ctx.beginPath(); rrect(ctx,-2,-7,r*1.15,6,3); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); rrect(ctx,-2,1,r*1.15,6,3); ctx.fill(); ctx.stroke();
+            ctx.fillStyle=acc; ctx.beginPath(); rrect(ctx,-5,-8,8,16,3); ctx.fill(); ctx.stroke();
             break;
         case 'Artillerie':
-            ctx.fillStyle='#636e72'; ctx.beginPath(); ctx.roundRect(-3,-5.5,r*1.4,11,5); ctx.fill(); ctx.stroke();
+            ctx.fillStyle='#636e72'; ctx.beginPath(); rrect(ctx,-3,-5.5,r*1.4,11,5); ctx.fill(); ctx.stroke();
             ctx.fillStyle='#e17055'; ctx.beginPath(); ctx.arc(r*1.4,0,7,0,Math.PI*2); ctx.fill();
-            ctx.fillStyle=acc; ctx.beginPath(); ctx.roundRect(-5,-5,10,10,4); ctx.fill();
+            ctx.fillStyle=acc; ctx.beginPath(); rrect(ctx,-5,-5,10,10,4); ctx.fill();
             break;
         case 'Sniper':
-            ctx.fillStyle=dark; ctx.beginPath(); ctx.roundRect(-3,-3,r*2.0,7,2); ctx.fill(); ctx.stroke();
+            ctx.fillStyle=dark; ctx.beginPath(); rrect(ctx,-3,-3,r*2.0,7,2); ctx.fill(); ctx.stroke();
             ctx.fillStyle=metal;
-            ctx.beginPath(); ctx.roundRect(r*0.8,-6,4,5,1); ctx.fill();
-            ctx.beginPath(); ctx.roundRect(r*0.8,1,4,5,1); ctx.fill();
-            ctx.fillStyle=acc; ctx.beginPath(); ctx.roundRect(-5,-3,9,7,2); ctx.fill();
+            ctx.beginPath(); rrect(ctx,r*0.8,-6,4,5,1); ctx.fill();
+            ctx.beginPath(); rrect(ctx,r*0.8,1,4,5,1); ctx.fill();
+            ctx.fillStyle=acc; ctx.beginPath(); rrect(ctx,-5,-3,9,7,2); ctx.fill();
             break;
         case 'Unterstützung':
             ctx.strokeStyle='#c0392b'; ctx.lineWidth=6; ctx.lineCap='round';
@@ -1650,9 +1650,9 @@ function drawWeapon(ctx, classLabel, shirtColor, r) {
             for(let i=1;i<=3;i++){ ctx.beginPath(); ctx.moveTo(i*r*0.3,-3); ctx.lineTo(i*r*0.3,3); ctx.stroke(); }
             break;
         default: // pistol/schütze/distanz
-            ctx.fillStyle=dark; ctx.beginPath(); ctx.roundRect(-1,-4.5,r*1.1,9,3); ctx.fill(); ctx.stroke();
-            ctx.fillStyle=metal; ctx.beginPath(); ctx.roundRect(r*0.9,-3.5,r*0.32,6,2); ctx.fill(); ctx.stroke();
-            ctx.fillStyle=acc; ctx.beginPath(); ctx.roundRect(-3,-3.5,7,7,2); ctx.fill();
+            ctx.fillStyle=dark; ctx.beginPath(); rrect(ctx,-1,-4.5,r*1.1,9,3); ctx.fill(); ctx.stroke();
+            ctx.fillStyle=metal; ctx.beginPath(); rrect(ctx,r*0.9,-3.5,r*0.32,6,2); ctx.fill(); ctx.stroke();
+            ctx.fillStyle=acc; ctx.beginPath(); rrect(ctx,-3,-3.5,7,7,2); ctx.fill();
     }
 }
 
@@ -1814,6 +1814,8 @@ function roundRect(ctx, x, y, w, h, r) {
     ctx.quadraticCurveTo(x, y+h, x, y+h-r); ctx.lineTo(x, y+r);
     ctx.quadraticCurveTo(x, y, x+r, y); ctx.closePath();
 }
+// Polyfill ctx.roundRect for older browsers
+function rrect(ctx, x, y, w, h, r) { roundRect(ctx, x, y, w, h, r); }
 
 // ── Arena ─────────────────────────────────────────────────────────────
 function initArena() {
