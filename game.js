@@ -2,6 +2,14 @@
 // =====================================================================
 //  BRAWL CLONE  –  Pure Canvas 2D  –  3 Modes: Arena, BrawlBall, Showdown
 // =====================================================================
+window.onerror = (msg, src, line, col, err) => {
+    document.body.style.background = '#1a0000';
+    const d = document.createElement('pre');
+    d.style.cssText = 'color:#ff6b6b;padding:20px;font-size:13px;position:fixed;top:0;left:0;z-index:9999;background:rgba(0,0,0,0.9);max-width:100%;overflow:auto';
+    d.textContent = '❌ JS ERROR:\n' + msg + '\nLine ' + line + ':' + col + '\n' + (err&&err.stack||'');
+    document.body.appendChild(d);
+    return false;
+};
 
 const canvas = document.getElementById('gameCanvas');
 const ctx    = canvas.getContext('2d');
