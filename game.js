@@ -679,7 +679,7 @@ function updateShowdown(dt) {
     const pDist = dist(player.x, player.y, SD_ZONE_CX, SD_ZONE_CY);
     if (pDist > sdZoneRadius && !player.dead) {
         player.hp -= 7 * dt;
-        if (player.hp <= 0) { triggerGameOver(false); return; }
+        if (player.hp <= 0) { const pl = sdEntities.filter(e=>!e.dead).length + 1; triggerGameOver(false, pl); return; }
     }
 
     for (const c of sdCrates) {
@@ -759,7 +759,7 @@ function updateBulletsShowdown(dt) {
                 spawnParticles(b.x, b.y, b.color, 5, 80);
                 if (c.hp <= 0) {
                     killEntityGeneric(c);
-                    if (c === player) { triggerGameOver(false); return false; }
+                    if (c === player) { const pl = sdEntities.filter(e=>!e.dead).length + 1; triggerGameOver(false, pl); return false; }
                 }
                 if (b.explodeOnHit) { spawnExplosion(b.x, b.y, b.explodeRadius, b.explodeDmg, {fromPlayer:b.fromPlayer}, b.explodeColor); return false; }
                 if (!b.pierce) return false;
@@ -1040,27 +1040,54 @@ function updateHUD() {
 }
 
 // ── Game Over ─────────────────────────────────────────────────────────
-function triggerGameOver(won) {
+// ── Trophy system ─────────────────────────────────────────────────────
+function getTrophies() { return parseInt(localStorage.getItem('brawlTrophies') || '0', 10); }
+function addTrophies(delta) {
+    const t = Math.max(0, getTrophies() + delta);
+    localStorage.setItem('brawlTrophies', t);
+    return t;
+}
+function updateMenuTrophies() {
+    const el = document.getElementById('menu-trophies');
+    if (el) el.textContent = `🏆 ${getTrophies()} Trophäen`;
+}
+
+function triggerGameOver(won, placement) {
     if (!gameActive) return;
     gameActive = false;
     let title, sub, score;
-    if (currentMode === 'arena') {
+
+    // Showdown placement-based win condition: top 7 = win, 8-10 = lose
+    if (currentMode === 'showdown') {
+        const aliveCount = sdEntities ? sdEntities.filter(e => !e.dead).length : 1;
+        placement = placement || (won ? 1 : (10 - aliveCount + 1));
+        won = placement <= 7;
+        title = won ? '🏆 LETZTER STEHEND!' : '💀 AUSGESCHIEDEN';
+        sub   = won ? `Platz ${placement} – du hast überlebt!` : `Platz ${placement} – zu früh ausgeschieden!`;
+        score = `Kills: ${kills}`;
+    } else if (currentMode === 'arena') {
         title = won ? '🏆 SIEG!' : '💀 GAME OVER';
         sub   = won ? 'Du hast alle 5 Wellen überstanden!' : 'Du wurdest besiegt...';
         score = `Kills: ${kills}  ·  Welle ${wave}`;
-    } else if (currentMode === 'brawlball') {
+    } else {
         title = won ? '🏆 SIEG!' : '😢 NIEDERLAGE';
         sub   = won ? 'Dein Team hat gewonnen!' : 'Das rote Team hat gewonnen!';
         score = `🔵 ${bbScore.blue} – ${bbScore.red} 🔴`;
-    } else {
-        title = won ? '🏆 LETZTER STEHEND!' : '💀 AUSGESCHIEDEN';
-        sub   = won ? 'Du bist der letzte Überlebende!' : 'Du wurdest eliminiert...';
-        score = `Kills: ${kills}`;
     }
+
+    const delta = won ? 13 : -2;
+    const newTotal = addTrophies(delta);
+    const trophyText = won
+        ? `+13 🏆  →  ${newTotal} Trophäen gesamt`
+        : `-2 🏆  →  ${Math.max(0, newTotal)} Trophäen gesamt`;
+
     document.getElementById('overlay-title').textContent = title;
     document.getElementById('overlay-sub').textContent   = sub;
     document.getElementById('overlay-score').textContent = score;
+    document.getElementById('overlay-trophies').textContent = trophyText;
+    document.getElementById('overlay-trophies').style.color = won ? '#f7c948' : '#e74c3c';
     document.getElementById('overlay').classList.remove('hidden');
+    updateMenuTrophies();
 }
 
 // ── Main Loop ─────────────────────────────────────────────────────────
@@ -1192,3 +1219,6 @@ canvas.addEventListener('mousedown', e => {
     if (!gameActive || e.button !== 0) return;
     fireAttack();
 });
+
+// Init trophy display on load
+updateMenuTrophies();
