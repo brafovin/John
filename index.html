@@ -32,8 +32,22 @@
         .stat-row { display: flex; gap: 6px; margin-top: 6px; justify-content: center; }
         .stat-bar { height: 4px; width: 10px; border-radius: 2px; background: #444; }
         .stat-bar.filled { background: #f7c948; }
-        #startBtn { padding: 14px 44px; font-size: 18px; background: linear-gradient(135deg,#2ecc71,#27ae60); border: none; border-radius: 30px; color: #fff; font-family: inherit; font-weight: 900; cursor: pointer; box-shadow: 0 4px 18px rgba(46,204,113,.4); transition: transform .12s; }
-        #startBtn:hover { transform: scale(1.06); }
+        #selectNextBtn { padding: 14px 44px; font-size: 18px; background: linear-gradient(135deg,#2ecc71,#27ae60); border: none; border-radius: 30px; color: #fff; font-family: inherit; font-weight: 900; cursor: pointer; box-shadow: 0 4px 18px rgba(46,204,113,.4); transition: transform .12s; }
+        #selectNextBtn:hover { transform: scale(1.06); }
+
+        /* --- MODE SELECT --- */
+        #modeScreen h2 { font-size: 30px; color: #f7c948; margin-bottom: 28px; letter-spacing: 2px; }
+        #modeGrid { display: flex; gap: 20px; margin-bottom: 28px; }
+        .mode-card { background: #1e1e3a; border: 3px solid #333; border-radius: 20px; padding: 28px 22px; text-align: center; cursor: pointer; transition: all .15s; width: 180px; }
+        .mode-card:hover { border-color: #f7c948; transform: scale(1.05); }
+        .mode-card.selected { border-color: #f7c948; background: #2a2a4a; box-shadow: 0 0 24px rgba(247,201,72,.4); }
+        .mode-card .mode-icon { font-size: 40px; margin-bottom: 10px; }
+        .mode-card h3 { font-size: 16px; color: #fff; margin-bottom: 8px; }
+        .mode-card p { font-size: 11px; color: #888; line-height: 1.5; }
+        #modeStartBtn { padding: 14px 44px; font-size: 18px; background: linear-gradient(135deg,#f7c948,#e67e22); border: none; border-radius: 30px; color: #111; font-family: inherit; font-weight: 900; cursor: pointer; box-shadow: 0 4px 18px rgba(247,201,72,.4); transition: transform .12s; }
+        #modeStartBtn:hover { transform: scale(1.06); }
+        #modeBackBtn { margin-top: 12px; padding: 8px 28px; font-size: 14px; background: transparent; border: 2px solid #555; border-radius: 20px; color: #aaa; font-family: inherit; cursor: pointer; transition: all .12s; }
+        #modeBackBtn:hover { border-color: #f7c948; color: #f7c948; }
 
         /* --- IN-GAME HUD --- */
         #hud { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 700px; padding: 8px 16px; display: flex; align-items: center; gap: 14px; pointer-events: none; }
@@ -51,6 +65,12 @@
         #super-btn-hint { font-size: 11px; color: #f7c948; }
         #hud.hidden { display: none; }
 
+        /* score display for BrawlBall */
+        #bb-score { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); font-size: 22px; font-weight: 900; color: #fff; text-shadow: 0 2px 8px #000; pointer-events: none; display: none; background: rgba(0,0,0,0.5); padding: 4px 18px; border-radius: 16px; }
+
+        /* showdown HUD extras */
+        #sd-hud { position: fixed; top: 8px; right: 10px; color: #f7c948; font-size: 14px; font-weight: 900; pointer-events: none; display: none; text-align: right; background: rgba(0,0,0,0.45); padding: 6px 12px; border-radius: 10px; }
+
         /* --- OVERLAY --- */
         #overlay { position: fixed; inset: 0; background: rgba(0,0,0,.78); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; }
         #overlay.hidden { display: none; }
@@ -61,7 +81,7 @@
         #overlay button:hover { transform: scale(1.06); }
 
         /* controls hint */
-        #controls-hint { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); color: #555; font-size: 11px; pointer-events: none; }
+        #controls-hint { position: fixed; top: 8px; left: 10px; color: #555; font-size: 11px; pointer-events: none; }
     </style>
 </head>
 <body>
@@ -77,11 +97,35 @@
 <div class="screen hidden" id="selectScreen">
     <h2>🎮 WÄHLE DEINEN BRAWLER</h2>
     <div id="brawlerGrid"></div>
-    <button id="startBtn" onclick="startGame()">LOS GEHT'S!</button>
+    <button id="selectNextBtn" onclick="showModeSelect()">WEITER →</button>
+</div>
+
+<!-- MODE SELECT -->
+<div class="screen hidden" id="modeScreen">
+    <h2>🗺️ WÄHLE DEN MODUS</h2>
+    <div id="modeGrid">
+        <div class="mode-card selected" id="mode-arena" onclick="selectMode('arena')">
+            <div class="mode-icon">⚔️</div>
+            <h3>Arena</h3>
+            <p>5 Wellen Gegner besiegen. Überlebe alle Angriffswellen!</p>
+        </div>
+        <div class="mode-card" id="mode-brawlball" onclick="selectMode('brawlball')">
+            <div class="mode-icon">⚽</div>
+            <h3>Brawl Ball</h3>
+            <p>Schieße den Ball ins gegnerische Tor. Erste zu 2 Toren gewinnt! Ball: schießen zum Kicken</p>
+        </div>
+        <div class="mode-card" id="mode-showdown" onclick="selectMode('showdown')">
+            <div class="mode-icon">☠️</div>
+            <h3>Showdown</h3>
+            <p>Battle Royale! Schrumpfende Zone, 10 Spieler. Sei der Letzte!</p>
+        </div>
+    </div>
+    <button id="modeStartBtn" onclick="startGame(selectedMode)">LOS GEHT'S!</button>
+    <button id="modeBackBtn" onclick="showSelect()">← Zurück</button>
 </div>
 
 <!-- CANVAS -->
-<canvas id="gameCanvas" width="700" height="500"></canvas>
+<canvas id="gameCanvas" width="700" height="520" style="display:none"></canvas>
 
 <!-- HUD -->
 <div id="hud" class="hidden">
@@ -97,6 +141,15 @@
     </div>
 </div>
 
+<!-- BrawlBall score -->
+<div id="bb-score">🔵 0 – 0 🔴</div>
+
+<!-- Showdown HUD -->
+<div id="sd-hud">
+    <div id="sd-alive">Alive: 10/10</div>
+    <div id="sd-timer">Zone: 90s</div>
+</div>
+
 <div id="controls-hint">WASD Bewegen · Maus Zielen · Klick Angriff · E Super</div>
 
 <!-- GAME OVERLAY -->
@@ -104,8 +157,8 @@
     <h1 id="overlay-title"></h1>
     <div class="sub" id="overlay-sub"></div>
     <div class="score" id="overlay-score"></div>
-    <button onclick="showSelect()">BRAWLER WECHSELN</button>
-    <button onclick="startGame()">NOCHMAL</button>
+    <button onclick="startGame(selectedMode)">NOCHMAL</button>
+    <button onclick="showModeSelect()">MODUS WECHSELN</button>
 </div>
 
 <script src="game.js"></script>
