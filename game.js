@@ -13,6 +13,9 @@ window.onerror = (msg, src, line, col, err) => {
 
 const canvas = document.getElementById('gameCanvas');
 const ctx    = canvas.getContext('2d');
+canvas.width  = 960;
+canvas.height = 600;
+document.getElementById('hud').style.width = '960px';
 const W = canvas.width, H = canvas.height;
 
 // ── Constants ─────────────────────────────────────────────────────────
@@ -20,10 +23,26 @@ const TILE       = 40;
 const BULLET_SPD = 420;
 const AMMO_REGEN = 1.6;
 const SUPER_MAX  = 100;
+const MAP_COLS   = 26;
+const MAP_ROWS   = 20;
+const SD_COLS    = 36;
+const SD_ROWS    = 25;
 
 // ── Mode state ────────────────────────────────────────────────────────
 let currentMode = 'arena';
 let selectedMode = 'arena';
+
+// ── Camera ────────────────────────────────────────────────────────────
+let camX = 0, camY = 0;
+let worldMouseX = W/2, worldMouseY = H/2;
+
+function updateCamera() {
+    if (currentMode === 'brawlball') { camX = 0; camY = 0; return; }
+    const maxCX = (currentMode === 'showdown' ? SD_COLS : MAP_COLS) * TILE - W;
+    const maxCY = (currentMode === 'showdown' ? SD_ROWS : MAP_ROWS) * TILE - H;
+    camX = clamp(player.x - W/2, 0, maxCX);
+    camY = clamp(player.y - H/2, 0, maxCY);
+}
 
 // ── Camera shake ──────────────────────────────────────────────────────
 let camShake = 0, camSX = 0, camSY = 0;
@@ -152,7 +171,7 @@ const BRAWLERS = [
             b.explodeDmg = 30;
         },
         super(src) {
-            const cx = W/2, cy = H/2;
+            const cx = src.x, cy = src.y;
             for (let i = 0; i < 12; i++) {
                 const a = (Math.PI*2/12)*i;
                 spawnBullet({ x: cx, y: cy, fromPlayer: src.fromPlayer !== false, teamBlue: src.teamBlue }, a, 160, 18, '#27ae60', 8, false);
@@ -193,8 +212,8 @@ const BRAWLERS = [
             b.sniper = true;
         },
         super(src) {
-            src.x = W - src.x;
-            src.y = H - src.y;
+            src.x = clamp(W - src.x + camX, 60, MAP_COLS*TILE - 60);
+            src.y = clamp(H - src.y + camY, 60, MAP_ROWS*TILE - 60);
             spawnParticles(src.x, src.y, '#fd79a8', 16, 160);
             for (let i = 0; i < 4; i++) {
                 setTimeout(() => {
@@ -205,7 +224,6 @@ const BRAWLERS = [
             }
         },
     },
-    // ── New Brawlers ──────────────────────────────────────────────────
     {
         id: 'leon', name: 'Leon', emoji: '🗡️', color: '#00b894',
         classLabel: 'Assassine', classColor: '#00b894',
@@ -378,7 +396,6 @@ const BRAWLERS = [
         },
         super(src) {
             spawnParticles(src.x, src.y, '#74b9ff', 20, 160);
-            // Heal nearby allies
             const allies = src.fromPlayer !== false ? [player, ...(bbBlueAllies||[])] : [];
             allies.forEach(a => { if (a && !a.dead) { a.hp = Math.min(a.maxHp, a.hp + 50); spawnFloatText(a.x, a.y-20, '+50❤️', '#74b9ff'); }});
         },
@@ -396,7 +413,6 @@ const BRAWLERS = [
             wide.pushBack = true;
         },
         super(src) {
-            // Pull nearest enemy toward src
             const targets = src.fromPlayer !== false ? enemies : [player];
             let nearest = null, nd = Infinity;
             (Array.isArray(targets) ? targets : [targets]).forEach(t => {
@@ -411,7 +427,7 @@ const BRAWLERS = [
     },
 ];
 
-// ── Special objects (bears, mines, black holes, fire puddles) ─────────
+// ── Special objects ────────────────────────────────────────────────────
 let bears = [], mines = [], blackHoles = [], firePuddles = [];
 
 function spawnFirePuddle(x, y, src) {
@@ -420,7 +436,6 @@ function spawnFirePuddle(x, y, src) {
 }
 
 function updateSpecialObjects(dt) {
-    // Bears AI
     for (const bear of bears) {
         if (bear.dead) continue;
         const targets = bear.fromPlayer ? enemies : [player];
@@ -441,7 +456,6 @@ function updateSpecialObjects(dt) {
     }
     bears = bears.filter(b => !b.dead);
 
-    // Mines
     for (const m of mines) {
         if (m.dead) continue;
         if (!m.armed) { m.armTimer -= dt; if(m.armTimer<=0) m.armed=true; continue; }
@@ -454,7 +468,6 @@ function updateSpecialObjects(dt) {
     }
     mines = mines.filter(m => !m.dead);
 
-    // Black holes
     for (const bh of blackHoles) {
         bh.life -= dt;
         if (bh.life <= 0) { bh.dead = true; continue; }
@@ -473,7 +486,6 @@ function updateSpecialObjects(dt) {
     }
     blackHoles = blackHoles.filter(b => !b.dead);
 
-    // Fire puddles
     for (const fp of firePuddles) {
         fp.life -= dt;
         if (fp.life <= 0) continue;
@@ -490,7 +502,6 @@ function updateSpecialObjects(dt) {
 }
 
 function drawSpecialObjects() {
-    // Fire puddles
     for (const fp of firePuddles) {
         ctx.save();
         ctx.globalAlpha = 0.45 * (fp.life / 4.0);
@@ -500,7 +511,6 @@ function drawSpecialObjects() {
         ctx.beginPath(); ctx.arc(fp.x,fp.y,fp.radius,0,Math.PI*2); ctx.fill();
         ctx.restore();
     }
-    // Mines
     for (const m of mines) {
         if (m.dead) continue;
         ctx.save();
@@ -516,7 +526,6 @@ function drawSpecialObjects() {
         }
         ctx.restore();
     }
-    // Black holes
     for (const bh of blackHoles) {
         ctx.save();
         ctx.globalAlpha = Math.min(1, bh.life/0.5) * 0.7;
@@ -528,7 +537,6 @@ function drawSpecialObjects() {
         ctx.beginPath(); ctx.arc(bh.x,bh.y,bh.radius,0,Math.PI*2); ctx.stroke();
         ctx.restore();
     }
-    // Bears
     for (const bear of bears) {
         if (bear.dead) continue;
         drawChar(ctx, bear, false);
@@ -537,53 +545,72 @@ function drawSpecialObjects() {
 
 // ── Maps ──────────────────────────────────────────────────────────────
 const MAP = [
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,1,1,0,0,0,1,0,1,0,0,1,1,0,0,1],
-    [1,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
-    [1,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,1],
-    [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
-    [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
-    [1,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,1],
-    [1,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
-    [1,0,0,1,1,0,0,0,1,0,1,0,0,1,1,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,1,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,1,0,0,0,1],
+    [1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1],
+    [1,0,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,1],
+    [1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,1,0,0,0,1,1,0,0,1,1,0,0,0,1,0,0,0,0,0,1],
+    [1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1],
+    [1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1],
+    [1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
 ];
 
-// BrawlBall: rows 4-8 have open left/right edges (goal openings)
 const BB_MAP = [
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
-    [1,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,1],
-    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [1,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,1],
-    [1,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0,0,0,0,0,1],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [1,0,0,0,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0,0,0,0,0,1],
+    [1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
 ];
 
-// Showdown: more open with scattered clusters
 const SHOWDOWN_MAP = [
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,1],
-    [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
-    [1,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,1],
-    [1,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1],
-    [1,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1],
-    [1,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1],
-    [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
-    [1,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,1],
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,1,0,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,1,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,1,0,0,1],
+    [1,0,0,1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,1],
+    [1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,1],
+    [1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,1,0,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
 ];
 
 let walls = [];
@@ -608,7 +635,7 @@ function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
 
 // ── Game State ────────────────────────────────────────────────────────
 let player, bullets, enemies, floatTexts, kills, wave, gameActive, selectedBrawlerIdx = 0;
-let mouseX = W/2, mouseY = H/2;
+let mouseHeld = false;
 let keys = {};
 let lastTime = 0;
 
@@ -670,10 +697,7 @@ function killEntityGeneric(e) {
 }
 
 // ── Enemy Archetypes (Arena) ──────────────────────────────────────────
-// Enemies are now real brawlers — picked from BRAWLERS array
-// attackRange and attackCool are derived per brawler type
 function getBrawlerEnemyStats(def) {
-    // Map brawler classes to AI behavior stats
     const rangeByClass = { 'Sniper':380, 'Artillerie':320, 'Schütze':280, 'Distanz':260, 'Nahkämpfer':80, 'Assassine':100, 'Tank':60, 'Unterstützung':250 };
     const coolByClass  = { 'Sniper':2.2, 'Artillerie':2.0, 'Schütze':1.4, 'Distanz':1.6, 'Nahkämpfer':0.9, 'Assassine':0.9, 'Tank':1.0, 'Unterstützung':1.8 };
     return {
@@ -685,10 +709,9 @@ function getBrawlerEnemyStats(def) {
 function spawnWave(waveNum) {
     const count = 4 + waveNum * 2;
     const spawnZones = [
-        {x:2,y:2},{x:15,y:2},{x:2,y:10},{x:15,y:10},{x:9,y:2},{x:9,y:10},{x:2,y:6},{x:15,y:6}
+        {x:2,y:2},{x:23,y:2},{x:2,y:17},{x:23,y:17},{x:13,y:2},{x:13,y:17},{x:2,y:10},{x:23,y:10}
     ];
     enemies = [];
-    // Pick a pool of enemy brawlers (exclude the player's brawler)
     const pool = BRAWLERS.filter(b => b.id !== player.def.id);
     for (let i = 0; i < count; i++) {
         const sp = spawnZones[i % spawnZones.length];
@@ -727,7 +750,11 @@ let bbBlueAllies = [];
 let bbRedTeam = [];
 let bbResetTimer = 0;
 let bbResetting = false;
-const BB_GOAL_Y_MIN = 160, BB_GOAL_Y_MAX = 360;
+// BB_MAP is 24 cols x 15 rows; goal rows 4-10
+const BB_GOAL_Y_MIN = 4 * TILE;   // 160
+const BB_GOAL_Y_MAX = 10 * TILE;  // 400
+const BB_W = 24 * TILE;           // 960
+const BB_H = 15 * TILE;           // 600
 
 function makeCharacter(def, x, y, isPlayerChar, teamBlue) {
     return {
@@ -759,10 +786,10 @@ function bbGoal(team) {
     if (bbResetting) return;
     bbResetting = true;
     bbResetTimer = 1.5;
-    if (team === 'blue') { bbScore.blue++; spawnParticles(W/2, H/2, '#3498db', 30, 220); }
-    else { bbScore.red++; spawnParticles(W/2, H/2, '#e74c3c', 30, 220); }
+    if (team === 'blue') { bbScore.blue++; spawnParticles(BB_W/2, BB_H/2, '#3498db', 30, 220); }
+    else { bbScore.red++; spawnParticles(BB_W/2, BB_H/2, '#e74c3c', 30, 220); }
     updateBBScore();
-    spawnFloatText(W/2, H/2 - 40, team === 'blue' ? '🔵 TOR!' : '🔴 TOR!', team === 'blue' ? '#3498db' : '#e74c3c');
+    spawnFloatText(BB_W/2, BB_H/2 - 40, team === 'blue' ? '🔵 TOR!' : '🔴 TOR!', team === 'blue' ? '#3498db' : '#e74c3c');
     if (bbScore.blue >= 2 || bbScore.red >= 2) {
         const won = bbScore.blue >= 2;
         setTimeout(() => triggerGameOver(won), 1200);
@@ -770,12 +797,12 @@ function bbGoal(team) {
 }
 
 function bbResetPositions() {
-    ball.x = W/2; ball.y = H/2; ball.vx = 0; ball.vy = 0;
-    player.x = W/2; player.y = H/2 + 40; player.hp = player.maxHp;
-    if (bbBlueAllies[0]) { bbBlueAllies[0].x = W/4; bbBlueAllies[0].y = H/2 - 40; bbBlueAllies[0].hp = bbBlueAllies[0].maxHp; bbBlueAllies[0].dead = false; }
-    if (bbBlueAllies[1]) { bbBlueAllies[1].x = W/4; bbBlueAllies[1].y = H/2 + 80; bbBlueAllies[1].hp = bbBlueAllies[1].maxHp; bbBlueAllies[1].dead = false; }
+    ball.x = BB_W/2; ball.y = BB_H/2; ball.vx = 0; ball.vy = 0;
+    player.x = BB_W/2; player.y = BB_H*0.55; player.hp = player.maxHp;
+    if (bbBlueAllies[0]) { bbBlueAllies[0].x = BB_W*0.25; bbBlueAllies[0].y = BB_H/2 - 40; bbBlueAllies[0].hp = bbBlueAllies[0].maxHp; bbBlueAllies[0].dead = false; }
+    if (bbBlueAllies[1]) { bbBlueAllies[1].x = BB_W*0.25; bbBlueAllies[1].y = BB_H/2 + 80; bbBlueAllies[1].hp = bbBlueAllies[1].maxHp; bbBlueAllies[1].dead = false; }
     for (let i = 0; i < bbRedTeam.length; i++) {
-        bbRedTeam[i].x = W*0.75; bbRedTeam[i].y = H/4 + i*(H/4);
+        bbRedTeam[i].x = BB_W*0.75; bbRedTeam[i].y = BB_H/4 + i*(BB_H/4);
         bbRedTeam[i].hp = bbRedTeam[i].maxHp; bbRedTeam[i].dead = false;
     }
     bbResetting = false;
@@ -788,19 +815,19 @@ function initBrawlBall() {
     bbRedTeam = [];
     bbResetting = false;
     bbResetTimer = 0;
-    ball = { x: W/2, y: H/2, vx: 0, vy: 0, radius: 13 };
+    ball = { x: BB_W/2, y: BB_H/2, vx: 0, vy: 0, radius: 13 };
 
     const def = BRAWLERS[selectedBrawlerIdx];
-    player = makeCharacter(def, W/2, H/2 + 40, true, true);
+    player = makeCharacter(def, BB_W/2, BB_H*0.55, true, true);
 
     const allyDef = BRAWLERS[(selectedBrawlerIdx+1) % BRAWLERS.length];
-    const ally1 = makeCharacter(allyDef, W/4, H/2 - 40, false, true);
-    const ally2 = makeCharacter(allyDef, W/4, H/2 + 80, false, true);
+    const ally1 = makeCharacter(allyDef, BB_W*0.25, BB_H/2 - 40, false, true);
+    const ally2 = makeCharacter(allyDef, BB_W*0.25, BB_H/2 + 80, false, true);
     bbBlueAllies.push(ally1, ally2);
 
     const redDef = BRAWLERS[(selectedBrawlerIdx+2) % BRAWLERS.length];
     for (let i = 0; i < 3; i++) {
-        const r = makeCharacter(redDef, W*0.75, H/4 + i*(H/4), false, false);
+        const r = makeCharacter(redDef, BB_W*0.75, BB_H/4 + i*(BB_H/4), false, false);
         r.color = '#e74c3c';
         bbRedTeam.push(r);
     }
@@ -821,13 +848,13 @@ function updateBBEntityAI(e, dt, goalX, goalY, isBlue) {
         }
     }
     const iChaser = (closestToBall === e);
-    const tx = iChaser ? ball.x : (isBlue ? W*0.35 : W*0.65);
-    const ty = iChaser ? ball.y : H/2;
+    const tx = iChaser ? ball.x : (isBlue ? BB_W*0.35 : BB_W*0.65);
+    const ty = iChaser ? ball.y : BB_H/2;
     const tdx = tx - e.x, tdy = ty - e.y, td = Math.hypot(tdx, tdy) || 1;
     const s = e.speed * dt;
     const nx = e.x + (tdx/td)*s, ny = e.y + (tdy/td)*s;
-    if (!isWall(nx, e.y, e.size/2-2)) e.x = clamp(nx, e.size/2, W-e.size/2);
-    if (!isWall(e.x, ny, e.size/2-2)) e.y = clamp(ny, e.size/2, H-e.size/2);
+    if (!isWall(nx, e.y, e.size/2-2)) e.x = clamp(nx, e.size/2, BB_W-e.size/2);
+    if (!isWall(e.x, ny, e.size/2-2)) e.y = clamp(ny, e.size/2, BB_H-e.size/2);
     e.angle = Math.atan2(ball.y - e.y, ball.x - e.x);
     const bd = dist(e.x, e.y, ball.x, ball.y);
     if (e.attackCooldown > 0) e.attackCooldown -= dt;
@@ -855,18 +882,17 @@ function updateBrawlBall(dt) {
     ball.vy *= Math.pow(0.978, dt * 60);
 
     if (ball.y - ball.radius < 0) { ball.y = ball.radius; ball.vy = Math.abs(ball.vy) * 0.8; }
-    if (ball.y + ball.radius > H) { ball.y = H - ball.radius; ball.vy = -Math.abs(ball.vy) * 0.8; }
+    if (ball.y + ball.radius > BB_H) { ball.y = BB_H - ball.radius; ball.vy = -Math.abs(ball.vy) * 0.8; }
 
     const inGoalRange = (ball.y > BB_GOAL_Y_MIN && ball.y < BB_GOAL_Y_MAX);
     if (!inGoalRange) {
         if (ball.x - ball.radius < 0) { ball.x = ball.radius; ball.vx = Math.abs(ball.vx) * 0.8; }
-        if (ball.x + ball.radius > W) { ball.x = W - ball.radius; ball.vx = -Math.abs(ball.vx) * 0.8; }
+        if (ball.x + ball.radius > BB_W) { ball.x = BB_W - ball.radius; ball.vx = -Math.abs(ball.vx) * 0.8; }
     }
 
     if (ball.x < -ball.radius) { bbGoal('red'); return; }
-    if (ball.x > W + ball.radius) { bbGoal('blue'); return; }
+    if (ball.x > BB_W + ball.radius) { bbGoal('blue'); return; }
 
-    // Ball vs wall bounce
     if (isWall(ball.x, ball.y, ball.radius)) {
         ball.vx = -ball.vx * 0.7; ball.vy = -ball.vy * 0.7;
         ball.x += ball.vx * dt * 2; ball.y += ball.vy * dt * 2;
@@ -889,10 +915,9 @@ function updateBrawlBall(dt) {
         }
     }
 
-    for (const ally of bbBlueAllies) updateBBEntityAI(ally, dt, W, H/2, true);
-    for (const red of bbRedTeam) updateBBEntityAI(red, dt, 0, H/2, false);
+    for (const ally of bbBlueAllies) updateBBEntityAI(ally, dt, BB_W, BB_H/2, true);
+    for (const red of bbRedTeam) updateBBEntityAI(red, dt, 0, BB_H/2, false);
 
-    // Bullets vs ball
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         if (b.dead || b.explodeRing) continue;
@@ -946,15 +971,70 @@ function updateBulletsBrawlBall(dt, allChars) {
 }
 
 function drawBrawlBall() {
-    drawMap();
+    // Draw soccer field background (no camera for BB)
+    ctx.clearRect(0,0,W,H);
+
+    // Green turf
+    ctx.fillStyle = '#2d7a27';
+    ctx.fillRect(0, 0, BB_W, BB_H);
+
+    // Alternating turf stripes
+    for (let i = 0; i < 8; i++) {
+        if (i % 2 === 0) {
+            ctx.fillStyle = 'rgba(0,0,0,0.06)';
+            ctx.fillRect(i * (BB_W/8), 0, BB_W/8, BB_H);
+        }
+    }
+
+    // White center line (vertical)
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([10,8]);
+    ctx.beginPath();
+    ctx.moveTo(BB_W/2, 0); ctx.lineTo(BB_W/2, BB_H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // White center circle
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(BB_W/2, BB_H/2, 80, 0, Math.PI*2);
+    ctx.stroke();
+
+    // Center dot
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.beginPath();
+    ctx.arc(BB_W/2, BB_H/2, 5, 0, Math.PI*2);
+    ctx.fill();
+
+    // Penalty areas
+    const paW = 140, paH = BB_GOAL_Y_MAX - BB_GOAL_Y_MIN;
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, BB_GOAL_Y_MIN, paW, paH);
+    ctx.strokeRect(BB_W - paW, BB_GOAL_Y_MIN, paW, paH);
+
+    // Corner arcs
+    const cornerR = 24;
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 2;
+    [[0,0,0,Math.PI/2],[BB_W,0,Math.PI/2,Math.PI],[0,BB_H,Math.PI*1.5,Math.PI*2],[BB_W,BB_H,Math.PI,Math.PI*1.5]].forEach(([cx,cy,sa,ea])=>{
+        ctx.beginPath(); ctx.arc(cx,cy,cornerR,sa,ea); ctx.stroke();
+    });
+
+    // Now draw walls and game objects
+    drawMapBB();
     drawGoals();
     drawSpecialObjects();
+
+    // Ball shadow
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath();
     ctx.ellipse(ball.x+3, ball.y+6, ball.radius*0.8, ball.radius*0.35, 0, 0, Math.PI*2);
     ctx.fill();
-    ctx.restore();
 
+    // Ball
     ctx.save();
     ctx.shadowBlur = 12; ctx.shadowColor = '#fff';
     ctx.fillStyle = '#fff';
@@ -970,46 +1050,70 @@ function drawBrawlBall() {
     drawFloatTexts();
 }
 
+function drawMapBB() {
+    // Wall tiles only — floor already drawn as turf
+    for (const w of walls) {
+        ctx.fillStyle = '#5a4020';
+        ctx.fillRect(w.x, w.y+w.h-6, w.w, 6);
+        ctx.fillStyle = '#8c6e42';
+        ctx.fillRect(w.x, w.y, w.w, w.h-6);
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(w.x,w.y+w.h*0.45); ctx.lineTo(w.x+w.w,w.y+w.h*0.45); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(w.x+w.w*0.5, w.y); ctx.lineTo(w.x+w.w*0.5, w.y+w.h*0.45); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(w.x+2, w.y+2, w.w-4, 4);
+    }
+}
+
 function drawGoals() {
     ctx.save();
-    ctx.fillStyle = 'rgba(231,76,60,0.25)';
-    ctx.fillRect(0, BB_GOAL_Y_MIN, 16, BB_GOAL_Y_MAX - BB_GOAL_Y_MIN);
-    ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 3;
-    ctx.strokeRect(0, BB_GOAL_Y_MIN, 16, BB_GOAL_Y_MAX - BB_GOAL_Y_MIN);
+    ctx.fillStyle = 'rgba(231,76,60,0.3)';
+    ctx.fillRect(0, BB_GOAL_Y_MIN, 20, BB_GOAL_Y_MAX - BB_GOAL_Y_MIN);
+    ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 4;
+    ctx.strokeRect(0, BB_GOAL_Y_MIN, 20, BB_GOAL_Y_MAX - BB_GOAL_Y_MIN);
     ctx.restore();
     ctx.save();
-    ctx.fillStyle = 'rgba(52,152,219,0.25)';
-    ctx.fillRect(W-16, BB_GOAL_Y_MIN, 16, BB_GOAL_Y_MAX - BB_GOAL_Y_MIN);
-    ctx.strokeStyle = '#3498db'; ctx.lineWidth = 3;
-    ctx.strokeRect(W-16, BB_GOAL_Y_MIN, 16, BB_GOAL_Y_MAX - BB_GOAL_Y_MIN);
+    ctx.fillStyle = 'rgba(52,152,219,0.3)';
+    ctx.fillRect(BB_W-20, BB_GOAL_Y_MIN, 20, BB_GOAL_Y_MAX - BB_GOAL_Y_MIN);
+    ctx.strokeStyle = '#3498db'; ctx.lineWidth = 4;
+    ctx.strokeRect(BB_W-20, BB_GOAL_Y_MIN, 20, BB_GOAL_Y_MAX - BB_GOAL_Y_MIN);
     ctx.restore();
 }
 
 // ── Showdown ──────────────────────────────────────────────────────────
 let sdEntities = [];
-let sdZoneRadius = 320;
+let sdZoneRadius = 560;
 let sdZoneTimer = 90;
-const SD_ZONE_CX = W/2, SD_ZONE_CY = H/2;
+const SD_ZONE_CX = SD_COLS * TILE / 2;
+const SD_ZONE_CY = SD_ROWS * TILE / 2;
 let sdCrates = [];
 const SD_CRATE_POSITIONS = [
-    {x:80,y:80},{x:620,y:80},{x:80,y:440},{x:620,y:440},
-    {x:200,y:200},{x:500,y:200},{x:200,y:360},{x:500,y:360},
+    {x:80,y:80},{x:1360,y:80},{x:80,y:940},{x:1360,y:940},
+    {x:280,y:240},{x:1160,y:240},{x:280,y:760},{x:1160,y:760},
+    {x:520,y:160},{x:920,y:160},{x:520,y:840},{x:920,y:840},
+    {x:700,y:400},{x:700,y:600},{x:400,y:500},{x:1040,y:500},
 ];
 
 function initShowdown() {
     buildWalls(SHOWDOWN_MAP);
-    sdZoneRadius = 320; sdZoneTimer = 90;
+    sdZoneRadius = SD_COLS * TILE / 2 - 40;
+    sdZoneTimer = 90;
     sdEntities = []; kills = 0;
 
     const def = BRAWLERS[selectedBrawlerIdx];
-    player = makeCharacter(def, W/2, H/2, true, true);
+    player = makeCharacter(def, SD_ZONE_CX, SD_ZONE_CY, true, true);
     player.fromPlayer = true;
     sdEntities.push(player);
 
     const sdColors = ['#e74c3c','#3498db','#2ecc71','#9b59b6','#f39c12','#1abc9c','#e67e22','#fd79a8','#00b894'];
+    const sdSpawns = [
+        {x:120,y:120},{x:SD_COLS*TILE-120,y:120},{x:120,y:SD_ROWS*TILE-120},{x:SD_COLS*TILE-120,y:SD_ROWS*TILE-120},
+        {x:SD_ZONE_CX,y:120},{x:SD_ZONE_CX,y:SD_ROWS*TILE-120},{x:120,y:SD_ZONE_CY},{x:SD_COLS*TILE-120,y:SD_ZONE_CY},
+        {x:400,y:300},
+    ];
     for (let i = 0; i < 9; i++) {
         const bDef = BRAWLERS[i % BRAWLERS.length];
-        const sp = SD_CRATE_POSITIONS[i % SD_CRATE_POSITIONS.length];
+        const sp = sdSpawns[i % sdSpawns.length];
         const e = makeCharacter(bDef, sp.x + (Math.random()-0.5)*60, sp.y + (Math.random()-0.5)*60, false, false);
         e.color = sdColors[i % sdColors.length];
         e.fromPlayer = false; e.teamBlue = false;
@@ -1035,7 +1139,8 @@ function updateShowdown(dt) {
 
     sdZoneTimer -= dt;
     if (sdZoneTimer < 0) sdZoneTimer = 0;
-    sdZoneRadius = 320 * (sdZoneTimer / 90);
+    const maxR = SD_COLS * TILE / 2 - 40;
+    sdZoneRadius = maxR * (sdZoneTimer / 90);
 
     const pDist = dist(player.x, player.y, SD_ZONE_CX, SD_ZONE_CY);
     if (pDist > sdZoneRadius && !player.dead) {
@@ -1061,8 +1166,8 @@ function updateShowdown(dt) {
             e.angle = ang;
             const s = e.speed * dt;
             const nx = e.x + Math.cos(ang)*s, ny = e.y + Math.sin(ang)*s;
-            if (!isWall(nx, e.y, e.size/2-2)) e.x = clamp(nx, e.size/2, W-e.size/2);
-            if (!isWall(e.x, ny, e.size/2-2)) e.y = clamp(ny, e.size/2, H-e.size/2);
+            if (!isWall(nx, e.y, e.size/2-2)) e.x = clamp(nx, e.size/2, SD_COLS*TILE-e.size/2);
+            if (!isWall(e.x, ny, e.size/2-2)) e.y = clamp(ny, e.size/2, SD_ROWS*TILE-e.size/2);
         } else {
             let nearest = null, nearD = Infinity;
             for (const other of sdEntities) {
@@ -1075,8 +1180,8 @@ function updateShowdown(dt) {
                 if (nearD > 120) {
                     const s = e.speed * dt;
                     const nx = e.x + Math.cos(e.angle)*s, ny = e.y + Math.sin(e.angle)*s;
-                    if (!isWall(nx, e.y, e.size/2-2)) e.x = clamp(nx, e.size/2, W-e.size/2);
-                    if (!isWall(e.x, ny, e.size/2-2)) e.y = clamp(ny, e.size/2, H-e.size/2);
+                    if (!isWall(nx, e.y, e.size/2-2)) e.x = clamp(nx, e.size/2, SD_COLS*TILE-e.size/2);
+                    if (!isWall(e.x, ny, e.size/2-2)) e.y = clamp(ny, e.size/2, SD_ROWS*TILE-e.size/2);
                 }
                 e.attackTimer -= dt;
                 if (nearD < 280 && e.attackTimer <= 0 && e.ammo > 0) {
@@ -1132,97 +1237,91 @@ function updateBulletsShowdown(dt) {
 }
 
 function drawShowdown() {
+    ctx.save();
+    ctx.translate(-camX, -camY);
+
     drawMapShowdown();
     drawSpecialObjects();
 
-    // ── Poison zone (blue like real Brawl Stars) ──────────────────────
-    // Dark fog outside safe zone
-    ctx.save();
-    ctx.fillStyle = 'rgba(10,20,60,0.62)';
-    ctx.fillRect(0,0,W,H);
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.beginPath();
-    ctx.arc(SD_ZONE_CX, SD_ZONE_CY, sdZoneRadius, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
-
-    // Animated blue zone ring
-    const pulse = Math.sin(performance.now()*0.003)*0.25+0.75;
-    ctx.save();
-    // Outer glow
-    ctx.shadowBlur=22; ctx.shadowColor=`rgba(50,160,255,${pulse})`;
-    ctx.strokeStyle=`rgba(80,180,255,${pulse})`; ctx.lineWidth=5;
-    ctx.beginPath(); ctx.arc(SD_ZONE_CX,SD_ZONE_CY,sdZoneRadius,0,Math.PI*2); ctx.stroke();
-    ctx.shadowBlur=0;
-    // Inner thin ring
-    ctx.strokeStyle=`rgba(180,230,255,${pulse*0.5})`; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.arc(SD_ZONE_CX,SD_ZONE_CY,sdZoneRadius-8,0,Math.PI*2); ctx.stroke();
-    ctx.restore();
-
-    // ── Crates (wooden Brawl Stars style) ────────────────────────────
+    // Crates
     for (const c of sdCrates) {
         if (!c.active) continue;
         ctx.save();
         const cx=c.x, cy=c.y, cs=18;
-        // Crate shadow
         ctx.fillStyle='rgba(0,0,0,0.22)';
         ctx.beginPath(); ctx.ellipse(cx+2,cy+cs+3,cs*0.9,cs*0.25,0,0,Math.PI*2); ctx.fill();
-        // Crate body
         ctx.fillStyle='#c8851a';
         ctx.beginPath(); rrect(ctx,cx-cs,cy-cs,cs*2,cs*2,4); ctx.fill();
-        // Top face (lighter)
         ctx.fillStyle='#dda020';
         ctx.beginPath(); rrect(ctx,cx-cs,cy-cs,cs*2,cs*0.9,4); ctx.fill();
-        // Wood grain lines
         ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=1.5;
         ctx.beginPath(); ctx.moveTo(cx-cs+4,cy-cs); ctx.lineTo(cx-cs+4,cy+cs); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(cx+cs-4,cy-cs); ctx.lineTo(cx+cs-4,cy+cs); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(cx-cs,cy); ctx.lineTo(cx+cs,cy); ctx.stroke();
-        // Metal bands
         ctx.strokeStyle='#7f5500'; ctx.lineWidth=2;
         ctx.beginPath(); rrect(ctx,cx-cs,cy-cs,cs*2,cs*2,4); ctx.stroke();
-        // Heart icon
         ctx.fillStyle='#e74c3c'; ctx.font=`bold ${cs}px Arial`;
         ctx.textAlign='center'; ctx.textBaseline='middle';
         ctx.fillText('❤',cx,cy+2);
         ctx.restore();
     }
 
-    drawParticlesAndRings(); drawBullets();
+    // Poison zone
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,20,60,0.62)';
+    ctx.fillRect(camX, camY, W, H);
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.arc(SD_ZONE_CX, SD_ZONE_CY, sdZoneRadius, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+
+    // Zone ring
+    const pulse = Math.sin(performance.now()*0.003)*0.25+0.75;
+    ctx.save();
+    ctx.shadowBlur=22; ctx.shadowColor=`rgba(50,160,255,${pulse})`;
+    ctx.strokeStyle=`rgba(80,180,255,${pulse})`; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.arc(SD_ZONE_CX,SD_ZONE_CY,sdZoneRadius,0,Math.PI*2); ctx.stroke();
+    ctx.shadowBlur=0;
+    ctx.strokeStyle=`rgba(180,230,255,${pulse*0.5})`; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(SD_ZONE_CX,SD_ZONE_CY,sdZoneRadius-8,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+
+    drawParticlesAndRings();
+    drawBullets();
     for (const e of sdEntities) { if (e!==player && !e.dead) drawChar(ctx,e,false); }
     if (!player.dead) drawChar(ctx,player,true);
     drawFloatTexts();
+
+    ctx.restore(); // end camera translate
 }
 
 function drawMapShowdown() {
-    ctx.clearRect(0,0,W,H);
-    // Sandy desert floor
-    for (let r=0; r<activeMap.length; r++) {
-        for (let c=0; c<activeMap[r].length; c++) {
-            if (activeMap[r][c]===0) {
+    const rowCount = SHOWDOWN_MAP.length;
+    const colCount = SHOWDOWN_MAP[0].length;
+    ctx.clearRect(camX, camY, W, H);
+    for (let r=0; r<rowCount; r++) {
+        for (let c=0; c<colCount; c++) {
+            if (SHOWDOWN_MAP[r][c]===0) {
                 ctx.fillStyle = (r+c)%2===0 ? '#d4956c' : '#c8845a';
                 ctx.fillRect(c*TILE, r*TILE, TILE, TILE);
-                // subtle sand ripple
                 ctx.fillStyle='rgba(255,255,255,0.05)';
                 ctx.fillRect(c*TILE+4, r*TILE+4, TILE-8, 4);
             }
         }
     }
-    // Desert decorations (cacti, pebbles)
     for (const d of mapDecorations) {
         ctx.save();
         ctx.translate(d.x, d.y);
         ctx.rotate(d.rot);
         ctx.scale(d.scale, d.scale);
         if (d.type === 'grass') {
-            // Small desert bush
             ctx.fillStyle='#7dbe5c';
             ctx.beginPath(); ctx.arc(0,0,5,0,Math.PI*2); ctx.fill();
             ctx.fillStyle='#6aaa50';
             ctx.beginPath(); ctx.arc(-4,-3,4,0,Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(4,-2,3.5,0,Math.PI*2); ctx.fill();
         } else {
-            // Pebble
             ctx.fillStyle='#b8825a';
             ctx.beginPath(); ctx.ellipse(0,0,4,3,0,0,Math.PI*2); ctx.fill();
             ctx.fillStyle='rgba(255,255,255,0.15)';
@@ -1230,24 +1329,17 @@ function drawMapShowdown() {
         }
         ctx.restore();
     }
-    // Desert rock walls — warm orange/brown
     for (const w of walls) {
-        // Rock base
         ctx.fillStyle='#b8622a';
         ctx.beginPath(); rrect(ctx,w.x+1,w.y+6,w.w-2,w.h-6,3); ctx.fill();
-        // Top face (brighter)
         ctx.fillStyle='#d4824a';
         ctx.beginPath(); rrect(ctx,w.x,w.y,w.w,w.h*0.6,4); ctx.fill();
-        // Highlight
         ctx.fillStyle='rgba(255,200,150,0.22)';
         ctx.beginPath(); rrect(ctx,w.x+3,w.y+3,w.w-6,6,2); ctx.fill();
-        // Side shadow
         ctx.fillStyle='rgba(0,0,0,0.18)';
         ctx.fillRect(w.x,w.y+w.h-7,w.w,7);
-        // Ground shadow
         ctx.fillStyle='rgba(0,0,0,0.12)';
         ctx.fillRect(w.x+2,w.y+w.h,w.w-2,5);
-        // Crack detail
         ctx.strokeStyle='rgba(0,0,0,0.12)'; ctx.lineWidth=1;
         ctx.beginPath(); ctx.moveTo(w.x+w.w*0.5,w.y+4); ctx.lineTo(w.x+w.w*0.4,w.y+w.h*0.45); ctx.stroke();
     }
@@ -1269,26 +1361,35 @@ function movePlayer(dt) {
         else { dx = Math.cos(player.dashAngle); dy = Math.sin(player.dashAngle); spd = player.dashSpeed; }
     }
 
+    const maxX = (currentMode === 'showdown' ? SD_COLS : (currentMode === 'brawlball' ? 24 : MAP_COLS)) * TILE;
+    const maxY = (currentMode === 'showdown' ? SD_ROWS : (currentMode === 'brawlball' ? 15 : MAP_ROWS)) * TILE;
     const nx = player.x + dx*spd*dt, ny = player.y + dy*spd*dt;
-    if (!isWall(nx, player.y, player.size/2-2)) player.x = clamp(nx, player.size/2, W-player.size/2);
-    if (!isWall(player.x, ny, player.size/2-2)) player.y = clamp(ny, player.size/2, H-player.size/2);
+    if (!isWall(nx, player.y, player.size/2-2)) player.x = clamp(nx, player.size/2, maxX-player.size/2);
+    if (!isWall(player.x, ny, player.size/2-2)) player.y = clamp(ny, player.size/2, maxY-player.size/2);
 
-    player.angle = Math.atan2(mouseY - player.y, mouseX - player.x);
+    // Use world mouse coords for angle
+    player.angle = Math.atan2(worldMouseY - player.y, worldMouseX - player.x);
+
     if (player.attackCooldown > 0) player.attackCooldown -= dt;
     if (player.ammo < player.ammoMax) { player.ammoTimer += dt; if (player.ammoTimer >= AMMO_REGEN) { player.ammo++; player.ammoTimer = 0; } }
-    // Leon invisibility
     if (player.invisible) { player.invisTimer -= dt; if (player.invisTimer <= 0) player.invisible = false; }
-    // Rosa shield
     if (player.shield) { player.shieldTimer -= dt; if (player.shieldTimer <= 0) player.shield = false; }
-    // Mortis dash damage
     if (player.dashing && player.dashDmg) {
-        for (const e of enemies) {
+        const targets = currentMode === 'arena' ? enemies : (currentMode === 'showdown' ? sdEntities.filter(e=>e!==player) : [...bbRedTeam]);
+        for (const e of targets) {
             if (!e.dead && dist(player.x,player.y,e.x,e.y) < player.size/2+e.size/2+4) {
                 e.hp -= 40*dt*8;
                 player.hp = Math.min(player.maxHp, player.hp + 10*dt*8);
                 if (e.hp <= 0) killEntityGeneric(e);
             }
         }
+    }
+
+    // Update camera after player moves
+    if (currentMode !== 'brawlball') {
+        updateCamera();
+    } else {
+        camX = 0; camY = 0;
     }
 }
 
@@ -1300,21 +1401,18 @@ function updateParticlesAndTexts(dt) {
 }
 
 function drawMap() {
-    ctx.clearRect(0, 0, W, H);
-    // Floor tiles with subtle pattern
-    for (let r = 0; r < activeMap.length; r++) {
-        for (let c = 0; c < activeMap[r].length; c++) {
-            if (activeMap[r][c] === 0) {
+    ctx.clearRect(0, 0, MAP_COLS*TILE, MAP_ROWS*TILE);
+    for (let r = 0; r < MAP.length; r++) {
+        for (let c = 0; c < MAP[r].length; c++) {
+            if (MAP[r][c] === 0) {
                 const base = (r+c)%2===0 ? '#3d8c36' : '#358030';
                 ctx.fillStyle = base;
                 ctx.fillRect(c*TILE, r*TILE, TILE, TILE);
-                // Inner shadow for depth
                 ctx.fillStyle = 'rgba(0,0,0,0.04)';
                 ctx.fillRect(c*TILE, r*TILE+TILE-4, TILE, 4);
             }
         }
     }
-    // Decorations (grass tufts, flowers)
     for (const d of mapDecorations) {
         ctx.save();
         ctx.translate(d.x, d.y);
@@ -1333,26 +1431,18 @@ function drawMap() {
         }
         ctx.restore();
     }
-    // Walls — 3D block style
     for (const w of walls) {
-        // Side face (darker)
         ctx.fillStyle = '#5a4020';
         ctx.fillRect(w.x, w.y+w.h-6, w.w, 6);
-        // Top face
         ctx.fillStyle = '#8c6e42';
         ctx.fillRect(w.x, w.y, w.w, w.h-6);
-        // Stone bricks
         ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 1;
-        // Horizontal mortar
         ctx.beginPath(); ctx.moveTo(w.x,w.y+w.h*0.45); ctx.lineTo(w.x+w.w,w.y+w.h*0.45); ctx.stroke();
-        // Vertical mortars
         ctx.beginPath(); ctx.moveTo(w.x+w.w*0.5, w.y); ctx.lineTo(w.x+w.w*0.5, w.y+w.h*0.45); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(w.x+w.w*0.25, w.y+w.h*0.45); ctx.lineTo(w.x+w.w*0.25, w.y+w.h-6); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(w.x+w.w*0.75, w.y+w.h*0.45); ctx.lineTo(w.x+w.w*0.75, w.y+w.h-6); ctx.stroke();
-        // Top highlight
         ctx.fillStyle = 'rgba(255,255,255,0.12)';
         ctx.fillRect(w.x+2, w.y+2, w.w-4, 4);
-        // Wall shadow cast on floor
         ctx.fillStyle = 'rgba(0,0,0,0.15)';
         ctx.fillRect(w.x+2, w.y+w.h, w.w-2, 6);
     }
@@ -1386,7 +1476,6 @@ function drawBullets() {
         ctx.save();
         ctx.shadowBlur = b.rocket ? 20 : (b.sniper ? 14 : 10);
         ctx.shadowColor = b.color;
-        // Bullet trail
         const tx = b.x - Math.cos(b.angle)*14, ty = b.y - Math.sin(b.angle)*14;
         const tg = ctx.createLinearGradient(tx, ty, b.x, b.y);
         tg.addColorStop(0, 'transparent'); tg.addColorStop(1, b.color);
@@ -1394,7 +1483,6 @@ function drawBullets() {
         ctx.lineWidth = b.radius * 1.5;
         ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(b.x, b.y); ctx.stroke();
-
         ctx.fillStyle = b.sniper ? '#fff' : b.color;
         const r = b.rocket ? b.radius*1.4 : b.radius;
         if (b.rocket) {
@@ -1420,7 +1508,6 @@ function drawFloatTexts() {
         ctx.globalAlpha = Math.min(1, f.life/0.5) * Math.min(1, f.life);
         ctx.font = 'bold 14px Arial Black, Arial';
         ctx.textAlign = 'center';
-        // Drop shadow
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
         ctx.fillText(f.text, f.x+1, f.y+1);
         ctx.fillStyle = f.color;
@@ -1559,7 +1646,7 @@ function drawHair(ctx, style, color, hx, hy, hr) {
             ctx.beginPath(); ctx.ellipse(0,-hr*0.52,hr*0.76,hr*0.12,0,0,Math.PI*2); ctx.fill();
             ctx.fillStyle='#f9ca24'; ctx.beginPath(); ctx.arc(0,-hr*0.62,hr*0.14,0,Math.PI*2); ctx.fill();
             break;
-        default: // short
+        default:
             ctx.beginPath(); ctx.arc(0,-hr*0.32,hr*0.65,Math.PI,Math.PI*2); ctx.fill();
     }
     ctx.restore();
@@ -1571,23 +1658,19 @@ function drawFace(ctx, expr, hx, hy, hr, angle, skinColor) {
     const eL = { x:Math.cos(angle-0.44)*eOff, y:Math.sin(angle-0.44)*eOff };
     const eR = { x:Math.cos(angle+0.44)*eOff, y:Math.sin(angle+0.44)*eOff };
     const er = hr*0.3;
-    // Whites
     ctx.fillStyle='#fff';
     [eL,eR].forEach(e=>{ ctx.beginPath(); ctx.arc(e.x,e.y,er,0,Math.PI*2); ctx.fill(); });
-    // Iris
     const irisC = expr==='evil'?'#8e44ad':(expr==='wise'?'#2471a3':'#1a1a2e');
     ctx.fillStyle=irisC;
     [eL,eR].forEach(e=>{
         const px=e.x+Math.cos(angle)*er*0.3, py=e.y+Math.sin(angle)*er*0.3;
         ctx.beginPath(); ctx.arc(px,py,er*0.56,0,Math.PI*2); ctx.fill();
     });
-    // Pupil shine
     ctx.fillStyle='rgba(255,255,255,0.9)';
     [eL,eR].forEach(e=>{
         const px=e.x+Math.cos(angle)*er*0.3-er*0.16, py=e.y+Math.sin(angle)*er*0.3-er*0.2;
         ctx.beginPath(); ctx.arc(px,py,er*0.18,0,Math.PI*2); ctx.fill();
     });
-    // Eyebrows
     const browT={normal:0,angry:-0.38,evil:-0.42,smirk:-0.18,happy:0.12,crazy:-0.45,wink:0,serious:-0.28,wise:0.05};
     const bt=browT[expr]||0;
     const browColor=lighten(skinColor,-50);
@@ -1599,7 +1682,6 @@ function drawFace(ctx, expr, hx, hy, hr, angle, skinColor) {
         ctx.lineTo(e.x+er*0.72,e.y-er*0.92-bt*er*0.5*s);
         ctx.stroke();
     });
-    // Mouth
     const mx=Math.cos(angle)*hr*0.1, my=Math.sin(angle)*hr*0.1+hr*0.34;
     ctx.strokeStyle=lighten(skinColor,-38); ctx.lineWidth=hr*0.16; ctx.lineCap='round';
     ctx.beginPath();
@@ -1612,7 +1694,6 @@ function drawFace(ctx, expr, hx, hy, hr, angle, skinColor) {
         ctx.lineTo(mx+hr*0.08,my-hr*0.08); ctx.lineTo(mx+hr*0.22,my+hr*0.12);
     } else if(expr==='wink'){
         ctx.arc(mx,my-hr*0.04,hr*0.2,0.3,Math.PI-0.15);
-        // wink one eye closed
         ctx.save(); ctx.strokeStyle='#1a1a2e'; ctx.lineWidth=hr*0.16;
         ctx.beginPath(); ctx.moveTo(eR.x-er*0.6,eR.y); ctx.lineTo(eR.x+er*0.6,eR.y); ctx.stroke();
         ctx.restore();
@@ -1657,7 +1738,7 @@ function drawWeapon(ctx, classLabel, shirtColor, r) {
             ctx.strokeStyle='rgba(0,0,0,0.2)'; ctx.lineWidth=1.5;
             for(let i=1;i<=3;i++){ ctx.beginPath(); ctx.moveTo(i*r*0.3,-3); ctx.lineTo(i*r*0.3,3); ctx.stroke(); }
             break;
-        default: // pistol/schütze/distanz
+        default:
             ctx.fillStyle=dark; ctx.beginPath(); rrect(ctx,-1,-4.5,r*1.1,9,3); ctx.fill(); ctx.stroke();
             ctx.fillStyle=metal; ctx.beginPath(); rrect(ctx,r*0.9,-3.5,r*0.32,6,2); ctx.fill(); ctx.stroke();
             ctx.fillStyle=acc; ctx.beginPath(); rrect(ctx,-3,-3.5,7,7,2); ctx.fill();
@@ -1678,7 +1759,6 @@ function drawChar(ctx, e, isPlayer) {
     ctx.save();
     ctx.globalAlpha = baseAlpha;
 
-    // ── Ground shadow ──────────────────────────────────────────────────
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
     ctx.beginPath();
     ctx.ellipse(x+2, y+r*0.92+bob*0.25, r*0.82, r*0.22, 0, 0, Math.PI*2);
@@ -1686,26 +1766,22 @@ function drawChar(ctx, e, isPlayer) {
 
     ctx.translate(x, y+bob);
 
-    // ── Legs ──────────────────────────────────────────────────────────
     const perpA = angle + Math.PI*0.5;
     const legY  = r*0.52;
     [-1, 1].forEach(s => {
         const lx = Math.cos(perpA)*r*0.28*s;
         const ly = Math.sin(perpA)*r*0.28*s + legY;
         const swing = legSwing * s;
-        // Upper leg
         ctx.fillStyle = vis.pants;
         ctx.beginPath();
         ctx.ellipse(lx, ly+swing*r*0.4, r*0.22, r*0.34, angle+s*0.18, 0, Math.PI*2);
         ctx.fill();
-        // Boot/shoe
         ctx.fillStyle = lighten(vis.pants,-25);
         ctx.beginPath();
         ctx.ellipse(lx+Math.cos(angle)*r*0.1, ly+r*0.28+swing*r*0.4, r*0.19, r*0.22, angle, 0, Math.PI*2);
         ctx.fill();
     });
 
-    // ── Belt ──────────────────────────────────────────────────────────
     if (vis.belt) {
         ctx.fillStyle = vis.belt;
         ctx.beginPath();
@@ -1713,7 +1789,6 @@ function drawChar(ctx, e, isPlayer) {
         ctx.fill();
     }
 
-    // ── Body / torso ──────────────────────────────────────────────────
     if (isPlayer) { ctx.shadowBlur=18; ctx.shadowColor=hexToRgba(vis.shirt,0.7); }
     ctx.fillStyle = vis.shirt;
     ctx.beginPath();
@@ -1722,45 +1797,35 @@ function drawChar(ctx, e, isPlayer) {
     ctx.shadowBlur = 0;
     ctx.strokeStyle = isPlayer ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.4)';
     ctx.lineWidth = isPlayer ? 2.2 : 1.6; ctx.stroke();
-    // Shirt shine
     ctx.fillStyle = 'rgba(255,255,255,0.14)';
     ctx.beginPath();
     ctx.ellipse(-r*0.2, -r*0.06, r*0.3, r*0.44, -0.35, 0, Math.PI*2);
     ctx.fill();
 
-    // ── Weapon arm ────────────────────────────────────────────────────
-    // Arm (rounded stub)
     const armX = Math.cos(angle)*r*0.52, armY = Math.sin(angle)*r*0.52;
     ctx.fillStyle = vis.skin;
     ctx.beginPath();
     ctx.ellipse(armX, armY+r*0.05, r*0.22, r*0.18, angle, 0, Math.PI*2);
     ctx.fill();
     ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.lineWidth=1; ctx.stroke();
-    // Weapon
     ctx.save();
     ctx.translate(armX, armY);
     ctx.rotate(angle);
     drawWeapon(ctx, def?.classLabel||'Schütze', vis.shirt, r);
     ctx.restore();
 
-    // ── Head ──────────────────────────────────────────────────────────
     const hR = r*0.58;
     const hX = Math.cos(angle)*r*0.1, hY = -r*0.3+Math.sin(angle)*r*0.07;
     ctx.fillStyle = vis.skin;
     ctx.beginPath(); ctx.arc(hX, hY, hR, 0, Math.PI*2); ctx.fill();
     ctx.strokeStyle = isPlayer ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.35)';
     ctx.lineWidth = isPlayer ? 2.2 : 1.8; ctx.stroke();
-    // Head shine
     ctx.fillStyle = 'rgba(255,255,255,0.18)';
     ctx.beginPath(); ctx.arc(hX-hR*0.25, hY-hR*0.28, hR*0.38, 0, Math.PI*2); ctx.fill();
 
-    // ── Hair ──────────────────────────────────────────────────────────
     drawHair(ctx, vis.h, vis.hair, hX, hY, hR);
-
-    // ── Face ──────────────────────────────────────────────────────────
     drawFace(ctx, vis.expr, hX, hY, hR, angle, vis.skin);
 
-    // ── Special effects ────────────────────────────────────────────────
     if (e.shield) {
         ctx.shadowBlur=14; ctx.shadowColor='#55efc4';
         ctx.strokeStyle='#55efc4'; ctx.lineWidth=3.5;
@@ -1791,7 +1856,6 @@ function drawChar(ctx, e, isPlayer) {
 
     ctx.restore();
 
-    // ── HP bar ────────────────────────────────────────────────────────
     const bw=size*1.8, bh=7, bx=x-bw/2, by=y-r-26+bob;
     ctx.fillStyle='rgba(0,0,0,0.5)'; roundRect(ctx,bx-1,by-1,bw+2,bh+2,4); ctx.fill();
     ctx.fillStyle='#1a1a2e'; roundRect(ctx,bx,by,bw,bh,3); ctx.fill();
@@ -1804,7 +1868,6 @@ function drawChar(ctx, e, isPlayer) {
         ctx.fillStyle='rgba(255,255,255,0.28)'; roundRect(ctx,bx+1,by+1,bw*ratio*0.88,2.5,1); ctx.fill();
     }
 
-    // ── Name tag ──────────────────────────────────────────────────────
     const label = def ? `${def.emoji} ${def.name}` : (e.name||'');
     if(label){
         ctx.save(); ctx.textAlign='center';
@@ -1815,6 +1878,7 @@ function drawChar(ctx, e, isPlayer) {
         ctx.restore();
     }
 }
+
 function roundRect(ctx, x, y, w, h, r) {
     ctx.beginPath(); ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y);
     ctx.quadraticCurveTo(x+w, y, x+w, y+r); ctx.lineTo(x+w, y+h-r);
@@ -1822,7 +1886,6 @@ function roundRect(ctx, x, y, w, h, r) {
     ctx.quadraticCurveTo(x, y+h, x, y+h-r); ctx.lineTo(x, y+r);
     ctx.quadraticCurveTo(x, y, x+r, y); ctx.closePath();
 }
-// Polyfill ctx.roundRect for older browsers
 function rrect(ctx, x, y, w, h, r) { roundRect(ctx, x, y, w, h, r); }
 
 // ── Arena ─────────────────────────────────────────────────────────────
@@ -1886,8 +1949,8 @@ function updateArena(dt) {
             if (pdist > e.attackRange*0.75) {
                 const s = e.speed*dt;
                 const ex = e.x+(pdx/pdist)*s, ey = e.y+(pdy/pdist)*s;
-                if (!isWall(ex, e.y, e.size/2-2)) e.x = clamp(ex, e.size/2, W-e.size/2);
-                if (!isWall(e.x, ey, e.size/2-2)) e.y = clamp(ey, e.size/2, H-e.size/2);
+                if (!isWall(ex, e.y, e.size/2-2)) e.x = clamp(ex, e.size/2, MAP_COLS*TILE-e.size/2);
+                if (!isWall(e.x, ey, e.size/2-2)) e.y = clamp(ey, e.size/2, MAP_ROWS*TILE-e.size/2);
             }
             e.attackTimer -= dt;
             if (e.attackTimer <= 0 && pdist < e.attackRange+e.size) {
@@ -1913,13 +1976,20 @@ function updateArena(dt) {
 }
 
 function drawArena() {
-    drawMap(); drawParticlesAndRings(); drawSpecialObjects(); drawBullets();
+    ctx.save();
+    ctx.translate(-camX, -camY);
+    drawMap();
+    drawParticlesAndRings();
+    drawSpecialObjects();
+    drawBullets();
     for (const e of enemies) if (!e.dead) drawChar(ctx, e, false);
-    drawChar(ctx, player, true); drawFloatTexts();
+    drawChar(ctx, player, true);
+    drawFloatTexts();
     if (enemies.length > 0) {
         ctx.save(); ctx.fillStyle = 'rgba(247,201,72,0.18)'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'right';
-        ctx.fillText(`Welle ${wave} · ${enemies.length} Gegner`, W-10, 20); ctx.restore();
+        ctx.fillText(`Welle ${wave} · ${enemies.length} Gegner`, camX + W - 10, camY + 20); ctx.restore();
     }
+    ctx.restore();
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────
@@ -1941,7 +2011,6 @@ function updateHUD() {
     document.getElementById('super-btn-hint').style.color = player.super >= SUPER_MAX ? '#f7c948' : '#555';
 }
 
-// ── Game Over ─────────────────────────────────────────────────────────
 // ── Trophy system ─────────────────────────────────────────────────────
 function getTrophies() { return parseInt(localStorage.getItem('brawlTrophies') || '0', 10); }
 function addTrophies(delta) {
@@ -1959,7 +2028,6 @@ function triggerGameOver(won, placement) {
     gameActive = false;
     let title, sub, score;
 
-    // Showdown placement-based win condition: top 7 = win, 8-10 = lose
     if (currentMode === 'showdown') {
         const aliveCount = sdEntities ? sdEntities.filter(e => !e.dead).length : 1;
         placement = placement || (won ? 1 : (10 - aliveCount + 1));
@@ -1998,8 +2066,8 @@ function loop(ts) {
     lastTime = ts;
     if (gameActive) {
         tickShake(dt);
+        if (mouseHeld) fireAttack();
         updateMode(dt);
-        // Apply camera shake via canvas transform
         ctx.save();
         ctx.translate(camSX, camSY);
         drawMode();
@@ -2012,7 +2080,6 @@ function updateMode(dt) {
     if (currentMode === 'arena') updateArena(dt);
     else if (currentMode === 'brawlball') updateBrawlBall(dt);
     else if (currentMode === 'showdown') updateShowdown(dt);
-    // Tick hit flash on all entities
     const allE = [...(enemies||[]), ...(bbRedTeam||[]), ...(bbBlueAllies||[]), ...(sdEntities||[])];
     if (player) allE.push(player);
     for (const e of allE) { if (e.hitFlash > 0) e.hitFlash = Math.max(0, e.hitFlash - dt*6); }
@@ -2077,7 +2144,7 @@ function renderBrawlerGrid() {
 function startGame(mode) {
     currentMode = mode || selectedMode || 'arena';
     selectedMode = currentMode;
-    gameActive = false; // stop any previous loop
+    gameActive = false;
 
     document.getElementById('selectScreen').classList.add('hidden');
     document.getElementById('menuScreen').classList.add('hidden');
@@ -2088,15 +2155,23 @@ function startGame(mode) {
 
     bullets = []; floatTexts = []; particles = []; kills = 0; wave = 1; enemies = [];
     bears = []; mines = []; blackHoles = []; firePuddles = [];
+    camX = 0; camY = 0;
     gameActive = true;
 
     const def = BRAWLERS[selectedBrawlerIdx];
     player = makeCharacter(def, W/2, H/2, true, true);
 
-    if (currentMode === 'arena') initArena();
-    else if (currentMode === 'brawlball') initBrawlBall();
-    else if (currentMode === 'showdown') initShowdown();
+    if (currentMode === 'arena') {
+        player.x = MAP_COLS/2 * TILE;
+        player.y = MAP_ROWS/2 * TILE;
+        initArena();
+    } else if (currentMode === 'brawlball') {
+        initBrawlBall();
+    } else if (currentMode === 'showdown') {
+        initShowdown();
+    }
 
+    updateCamera();
     updateHUD();
     lastTime = performance.now();
     requestAnimationFrame(loop);
@@ -2123,13 +2198,19 @@ window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
 canvas.addEventListener('mousemove', e => {
     const rect = canvas.getBoundingClientRect();
-    mouseX = e.clientX - rect.left;
-    mouseY = e.clientY - rect.top;
+    worldMouseX = e.clientX - rect.left + camX;
+    worldMouseY = e.clientY - rect.top + camY;
 });
 
 canvas.addEventListener('mousedown', e => {
-    if (!gameActive || e.button !== 0) return;
+    if (e.button !== 0) return;
+    mouseHeld = true;
+    if (!gameActive) return;
     fireAttack();
+});
+
+window.addEventListener('mouseup', e => {
+    if (e.button === 0) mouseHeld = false;
 });
 
 // Init trophy display on load
