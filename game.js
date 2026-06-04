@@ -1970,6 +1970,7 @@ function updateArena(dt) {
         player.hp = Math.min(player.maxHp, player.hp+40);
         player.ammo = player.ammoMax;
         spawnParticles(player.x, player.y, '#f7c948', 20, 200);
+        showWaveBanner(`⚔️ WELLE ${wave}`);
         spawnWave(wave);
     }
     updateHUD();
@@ -2008,7 +2009,10 @@ function updateHUD() {
         document.getElementById('hud-kills').textContent = `Kills: ${kills}`;
         document.getElementById('hud-wave').textContent  = 'Showdown';
     }
-    document.getElementById('super-btn-hint').style.color = player.super >= SUPER_MAX ? '#f7c948' : '#555';
+    const superHint = document.getElementById('super-btn-hint');
+    superHint.textContent = player.super >= SUPER_MAX ? '⚡ E = SUPER!' : 'E = Super';
+    if (player.super >= SUPER_MAX) superHint.classList.add('ready');
+    else superHint.classList.remove('ready');
 }
 
 // ── Trophy system ─────────────────────────────────────────────────────
@@ -2021,6 +2025,8 @@ function addTrophies(delta) {
 function updateMenuTrophies() {
     const el = document.getElementById('menu-trophies');
     if (el) el.textContent = `🏆 ${getTrophies()} Trophäen`;
+    const tn = document.getElementById('lobby-trophy-count');
+    if (tn) tn.textContent = getTrophies();
 }
 
 function triggerGameOver(won, placement) {
@@ -2145,13 +2151,17 @@ function startGame(mode) {
     currentMode = mode || selectedMode || 'arena';
     selectedMode = currentMode;
     gameActive = false;
+    if (lobbyAnim) { cancelAnimationFrame(lobbyAnim); lobbyAnim = null; }
 
+    document.getElementById('lobbyScreen').classList.add('hidden');
     document.getElementById('selectScreen').classList.add('hidden');
     document.getElementById('menuScreen').classList.add('hidden');
     document.getElementById('modeScreen').classList.add('hidden');
     document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('wave-banner').style.display = 'none';
     document.getElementById('gameCanvas').style.display = 'block';
     document.getElementById('hud').classList.remove('hidden');
+    showWaveBanner(currentMode === 'arena' ? '⚔️ WELLE 1' : currentMode === 'brawlball' ? '⚽ BRAWL BALL' : '☠️ SHOWDOWN');
 
     bullets = []; floatTexts = []; particles = []; kills = 0; wave = 1; enemies = [];
     bears = []; mines = []; blackHoles = []; firePuddles = [];
@@ -2213,5 +2223,111 @@ window.addEventListener('mouseup', e => {
     if (e.button === 0) mouseHeld = false;
 });
 
-// Init trophy display on load
+// ── Lobby ─────────────────────────────────────────────────────────────
+const lobbyCanvas = document.getElementById('lobbyCanvas');
+const lctx = lobbyCanvas ? lobbyCanvas.getContext('2d') : null;
+let lobbyAnimFrame = 0;
+let lobbyAnim = null;
+
+function backToLobby() {
+    gameActive = false;
+    document.getElementById('lobbyScreen').classList.remove('hidden');
+    document.getElementById('selectScreen').classList.add('hidden');
+    document.getElementById('gameCanvas').style.display = 'none';
+    document.getElementById('hud').classList.add('hidden');
+    document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('bb-score').style.display = 'none';
+    document.getElementById('sd-hud').style.display = 'none';
+    document.getElementById('wave-banner').style.display = 'none';
+    updateLobby();
+}
+
+function showSelect() {
+    document.getElementById('lobbyScreen').classList.add('hidden');
+    document.getElementById('selectScreen').classList.remove('hidden');
+    renderBrawlerGrid();
+}
+
+function lobbySelectMode(mode) {
+    selectedMode = mode;
+    document.querySelectorAll('.lobby-mode-card').forEach(c => c.classList.remove('selected'));
+    const card = document.getElementById('lobby-mode-' + mode);
+    if (card) card.classList.add('selected');
+}
+
+function updateLobby() {
+    const def = BRAWLERS[selectedBrawlerIdx];
+    document.getElementById('lobby-brawler-name').textContent = def.name;
+    const ct = document.getElementById('lobby-brawler-class-tag');
+    ct.textContent = def.classLabel;
+    ct.style.background = (def.classColor||'#555') + '33';
+    ct.style.color = def.classColor || '#aaa';
+    ct.style.border = '1px solid ' + (def.classColor||'#555');
+    document.getElementById('lobby-brawler-desc').textContent = def.desc;
+    const tn = document.getElementById('lobby-trophy-count');
+    if (tn) tn.textContent = getTrophies();
+    renderLobbyRoster();
+    startLobbyAnimation();
+}
+
+function renderLobbyRoster() {
+    const el = document.getElementById('lobby-roster');
+    if (!el) return;
+    el.innerHTML = '';
+    BRAWLERS.forEach((b, i) => {
+        const d = document.createElement('div');
+        d.className = 'roster-brawler' + (i === selectedBrawlerIdx ? ' selected' : '');
+        d.innerHTML = `<span class="r-icon">${b.emoji}</span><span class="r-name">${b.name}</span>`;
+        d.style.borderColor = i === selectedBrawlerIdx ? b.color : 'transparent';
+        d.onclick = () => { selectedBrawlerIdx = i; updateLobby(); };
+        el.appendChild(d);
+    });
+}
+
+function startLobbyAnimation() {
+    if (lobbyAnim) cancelAnimationFrame(lobbyAnim);
+    const def = BRAWLERS[selectedBrawlerIdx];
+    const vis = VIS[def.id] || VIS_DEFAULT;
+    const lw = lobbyCanvas.width, lh = lobbyCanvas.height;
+    const fakeEntity = {
+        x: lw/2, y: lh/2 + 20,
+        hp: def.hp, maxHp: def.hp,
+        size: 36, angle: Math.PI*0.12,
+        def, color: def.color,
+        dashing: false, invisible: false, shield: false, hitFlash: 0,
+        wobble: 0, dead: false, fromPlayer: true
+    };
+    function animLoop() {
+        lctx.clearRect(0, 0, lw, lh);
+        // Background circle
+        const grad = lctx.createRadialGradient(lw/2, lh/2+20, 0, lw/2, lh/2+20, 80);
+        grad.addColorStop(0, (def.color||'#555') + '33');
+        grad.addColorStop(1, 'transparent');
+        lctx.fillStyle = grad;
+        lctx.beginPath(); lctx.arc(lw/2, lh/2+20, 80, 0, Math.PI*2); lctx.fill();
+        // Idle bob
+        fakeEntity.wobble = performance.now() * 0.001;
+        drawChar(lctx, fakeEntity, true);
+        lobbyAnim = requestAnimationFrame(animLoop);
+    }
+    animLoop();
+}
+
+// Show wave banner
+function showWaveBanner(text) {
+    const el = document.getElementById('wave-banner');
+    if (!el) return;
+    el.textContent = text;
+    el.style.display = 'block';
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = 'wavePop .6s ease-out forwards';
+    setTimeout(() => { el.style.display = 'none'; }, 2000);
+}
+
+// Override showModeSelect and showModeSelect compat
+function showModeSelect() { backToLobby(); }
+
+// Init lobby on load
 updateMenuTrophies();
+backToLobby();
